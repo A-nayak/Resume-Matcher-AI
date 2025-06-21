@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 from text_extractor import extract_text
 # Corrected import: We now import get_spacy_model instead of a global nlp object
 from resume_parser import extract_info_spacy, clean_text, get_spacy_model
