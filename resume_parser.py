@@ -3,17 +3,17 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 import re
-import os # Import the os module
+import os
 
-# --- Add these lines to set NLTK data path and download data ---
-# Set a writable directory for NLTK data
+# --- Explicitly set NLTK_DATA environment variable ---
 nltk_data_dir = os.path.join("/tmp", "nltk_data")
 os.makedirs(nltk_data_dir, exist_ok=True)
-nltk.data.path.append(nltk_data_dir)
+os.environ["NLTK_DATA"] = nltk_data_dir # Set the environment variable
 
+# --- NLTK data downloads (will download to NLTK_DATA location) ---
 # NLTK will check if the data is already present before downloading.
-nltk.download('punkt', quiet=True)
-nltk.download('stopwords', quiet=True)
+nltk.download('punkt', download_dir=nltk_data_dir, quiet=True) # Specify download_dir
+nltk.download('stopwords', download_dir=nltk_data_dir, quiet=True) # Specify download_dir
 # --- End of NLTK data setup and download ---
 
 _nlp_model = None
