@@ -1,22 +1,34 @@
 import PyPDF2
 import docx
+import os # Import os for path handling
 
 def extract_text_from_pdf(pdf_path):
     text = ""
-    with open(pdf_path, "rb") as file:
-        reader = PyPDF2.PdfReader(file)
-        for page_num in range(len(reader.pages)):
-            text += reader.pages[page_num].extract_text()
+    try:
+        with open(pdf_path, "rb") as file:
+            reader = PyPDF2.PdfReader(file)
+            for page_num in range(len(reader.pages)):
+                text += reader.pages[page_num].extract_text()
+    except Exception as e:
+        print(f"Error reading PDF {pdf_path}: {e}")
+        text = "" # Return empty string on error
     return text
 
 def extract_text_from_docx(docx_path):
-    doc = docx.Document(docx_path)
     text = []
-    for paragraph in doc.paragraphs:
-        text.append(paragraph.text)
+    try:
+        doc = docx.Document(docx_path)
+        for paragraph in doc.paragraphs:
+            text.append(paragraph.text)
+    except Exception as e:
+        print(f"Error reading DOCX {docx_path}: {e}")
+        text = [""] # Return empty list on error
     return "\n".join(text)
 
 def extract_text(file_path):
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+
     if file_path.endswith(".pdf"):
         return extract_text_from_pdf(file_path)
     elif file_path.endswith(".docx"):
@@ -24,3 +36,19 @@ def extract_text(file_path):
     else:
         raise ValueError("Unsupported file format. Only PDF and DOCX are supported.")
 
+if __name__ == "__main__":
+    # Example usage for testing (replace with actual file paths)
+    print("--- Testing text_extractor.py ---")
+    # To test locally, you'd need sample.pdf and sample.docx files
+    # try:
+    #     pdf_text = extract_text("sample.pdf")
+    #     print(f"PDF Text:\n{pdf_text[:500]}...")
+    # except Exception as e:
+    #     print(f"PDF extraction error: {e}")
+
+    # try:
+    #     docx_text = extract_text("sample.docx")
+    #     print(f"DOCX Text:\n{docx_text[:500]}...")
+    # except Exception as e:
+    #     print(f"DOCX extraction error: {e}")
+    pass
