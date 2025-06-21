@@ -3,12 +3,18 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 import re
+import os # Import the os module
 
-# --- Add these lines to download NLTK data directly ---
+# --- Add these lines to set NLTK data path and download data ---
+# Set a writable directory for NLTK data
+nltk_data_dir = os.path.join("/tmp", "nltk_data")
+os.makedirs(nltk_data_dir, exist_ok=True)
+nltk.data.path.append(nltk_data_dir)
+
 # NLTK will check if the data is already present before downloading.
-nltk.download('punkt', quiet=True) # Use quiet=True to reduce console output
-nltk.download('stopwords', quiet=True) # Use quiet=True to reduce console output
-# --- End of NLTK data download ---
+nltk.download('punkt', quiet=True)
+nltk.download('stopwords', quiet=True)
+# --- End of NLTK data setup and download ---
 
 _nlp_model = None
 
@@ -28,14 +34,14 @@ def get_spacy_model():
 def clean_text(text):
     text = text.lower()
     text = re.sub(r'[^a-zA-Z0-9\s]', '', text) # Remove special characters
-    tokens = word_tokenize(text) #
-    stop_words = set(stopwords.words('english')) #
-    filtered_tokens = [word for word in tokens if word not in stop_words] #
-    return " ".join(filtered_tokens) #
+    tokens = word_tokenize(text)
+    stop_words = set(stopwords.words('english'))
+    filtered_tokens = [word for word in tokens if word not in stop_words]
+    return " ".join(filtered_tokens)
 
 def extract_info_spacy(text):
-    nlp_model = get_spacy_model() #
-    doc = nlp_model(text) #
+    nlp_model = get_spacy_model()
+    doc = nlp_model(text)
     extracted_data = {
         "name": "",
         "email": "",
@@ -45,24 +51,24 @@ def extract_info_spacy(text):
         "experience": []
     }
 
-    email_match = re.search(r'\S+@\S+', text) #
-    if email_match: extracted_data["email"] = email_match.group(0) #
+    email_match = re.search(r'\S+@\S+', text)
+    if email_match: extracted_data["email"] = email_match.group(0)
 
-    phone_match = re.search(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b', text) #
-    if phone_match: extracted_data["phone"] = phone_match.group(0) #
+    phone_match = re.search(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b', text)
+    if phone_match: extracted_data["phone"] = phone_match.group(0)
 
-    keywords = ["python", "java", "c++", "machine learning", "nlp", "data analysis", "project management"] #
-    for keyword in keywords: #
-        if keyword in text: #
-            extracted_data["skills"].append(keyword) #
+    keywords = ["python", "java", "c++", "machine learning", "nlp", "data analysis", "project management"]
+    for keyword in keywords:
+        if keyword in text:
+            extracted_data["skills"].append(keyword)
 
-    for ent in doc.ents: #
+    for ent in doc.ents:
         if ent.label_ == "ORG" or ent.label_ == "GPE": # Organizations or Geopolitical Entities might be part of education/experience
-            if "university" in ent.text.lower() or "college" in ent.text.lower(): #
-                extracted_data["education"].append(ent.text) #
-            elif "company" in ent.text.lower() or "inc" in ent.text.lower() or "llc" in ent.text.lower(): #
-                extracted_data["experience"].append(ent.text) #
+            if "university" in ent.text.lower() or "college" in ent.text.lower():
+                extracted_data["education"].append(ent.text)
+            elif "company" in ent.text.lower() or "inc" in ent.text.lower() or "llc" in ent.text.lower():
+                extracted_data["experience"].append(ent.text)
 
-    extracted_data["name"] = "Extracted Name Placeholder" #
+    extracted_data["name"] = "Extracted Name Placeholder"
 
-    return extracted_data #
+    return extracted_data
