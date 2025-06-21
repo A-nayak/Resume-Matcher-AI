@@ -1,10 +1,10 @@
-streamlit==1.22.0
-PyPDF2==3.0.1
-python-docx==0.8.11
-sentence-transformers==2.2.2
-scikit-learn==1.2.2
-numpy==1.24.3
-spacy==3.5.3
-nltk==3.8.1
-rake-nltk==1.0.4
-https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.5.0/en_core_web_sm-3.5.0.tar.gz
+streamlit
+PyPDF2
+python-docx
+sentence-transformers
+scikit-learn
+numpy
+spacy
+nltk
+rake-nltk
+en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
