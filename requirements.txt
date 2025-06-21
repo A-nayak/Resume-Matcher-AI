@@ -3,6 +3,6 @@ PyPDF2
 python-docx
 spacy
 nltk
-rake-nltk
 sentence-transformers
 scikit-learn
+rake-nltk
