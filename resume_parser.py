@@ -3,9 +3,67 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 import re
+import os
+import subprocess
+import streamlit as st # Import streamlit for st.warning/success messages
 
-# Load spaCy model
-nlp = spacy.load("en_core_web_sm")
+# --- NLTK Data Setup ---
+# Set a writable directory for NLTK data in Streamlit Cloud
+nltk_data_dir = os.path.join("/tmp", "nltk_data")
+os.makedirs(nltk_data_dir, exist_ok=True)
+os.environ["NLTK_DATA"] = nltk_data_dir # Explicitly set the environment variable
+
+# Download NLTK data to the specified directory.
+# NLTK will check if the data is already present before downloading.
+st.cache_resource # Use Streamlit's cache to avoid re-downloading on rerun
+def download_nltk_data():
+    try:
+        nltk.data.find('tokenizers/punkt')
+    except:
+        st.warning("NLTK 'punkt' tokenizer not found. Downloading...")
+        nltk.download('punkt', download_dir=nltk_data_dir, quiet=True)
+        st.success("NLTK 'punkt' downloaded.")
+
+    try:
+        nltk.data.find('corpora/stopwords')
+    except:
+        st.warning("NLTK 'stopwords' corpus not found. Downloading...")
+        nltk.download('stopwords', download_dir=nltk_data_dir, quiet=True)
+        st.success("NLTK 'stopwords' downloaded.")
+
+download_nltk_data()
+# --- End NLTK Data Setup ---
+
+
+# --- SpaCy Model Setup ---
+_nlp_model = None # Use a private global variable to store the loaded model
+
+@st.cache_resource # Use Streamlit's cache to avoid re-loading model on rerun
+def get_spacy_model():
+    """
+    Loads and returns the spaCy model, ensuring it's loaded only once.
+    Handles potential OSError by attempting to download the model.
+    """
+    global _nlp_model
+    if _nlp_model is None:
+        try:
+            _nlp_model = spacy.load("en_core_web_sm")
+            st.success("SpaCy model 'en_core_web_sm' loaded successfully!")
+        except OSError:
+            st.warning("SpaCy model 'en_core_web_sm' not found. Attempting to download. This may take a moment...")
+            # Use subprocess to run the download command
+            # capture_output=True, text=True helps suppress direct stdout/stderr to Streamlit logs
+            result = subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"],
+                                    capture_output=True, text=True, check=True)
+            if result.returncode == 0:
+                st.success("SpaCy model 'en_core_web_sm' downloaded successfully!")
+            else:
+                st.error(f"Failed to download spaCy model: {result.stderr}")
+                raise RuntimeError("Failed to download spaCy model.")
+            _nlp_model = spacy.load("en_core_web_sm")
+    return _nlp_model
+# --- End SpaCy Model Setup ---
+
 
 def clean_text(text):
     text = text.lower()
@@ -16,7 +74,8 @@ def clean_text(text):
     return " ".join(filtered_tokens)
 
 def extract_info_spacy(text):
-    doc = nlp(text)
+    nlp_model = get_spacy_model() # Get the spaCy model using the robust getter
+    doc = nlp_model(text)
     extracted_data = {
         "name": "",
         "email": "",
@@ -27,36 +86,62 @@ def extract_info_spacy(text):
     }
 
     # Extracting Name, Email, Phone (basic regex for now)
-    # This is a simplified approach, more robust regex or NER training would be needed for production
     email_match = re.search(r'\S+@\S+', text)
     if email_match: extracted_data["email"] = email_match.group(0)
 
-    phone_match = re.search(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b', text)
+    phone_match = re.search(r'\b(?:\d{3}[-.\s]?\d{3}[-.\s]?\d{4}|\(\d{3}\)\s*\d{3}[-.\s]?\d{4})\b', text)
     if phone_match: extracted_data["phone"] = phone_match.group(0)
 
-    # Extracting skills (simplified - will need a more comprehensive approach)
-    # For a real system, this would involve a predefined list of skills or custom NER
-    keywords = ["python", "java", "c++", "machine learning", "nlp", "data analysis", "project management"]
-    for keyword in keywords:
-        if keyword in text:
-            extracted_data["skills"].append(keyword)
+    # Extracting skills (simplified - will need a more comprehensive approach for real-world)
+    # Consider using a more extensive, predefined list or custom NER for production
+    # Example: Look for common skill keywords in the text
+    common_skills = [
+        "python", "java", "c++", "javascript", "html", "css", "react", "angular", "vue",
+        "machine learning", "deep learning", "nlp", "artificial intelligence",
+        "data analysis", "sql", "nosql", "aws", "azure", "google cloud", "docker", "kubernetes",
+        "git", "agile", "scrum", "project management", "microsoft office", "excel", "powerpoint",
+        "communication", "teamwork", "leadership", "problem-solving"
+    ]
+    text_lower = text.lower()
+    for skill in common_skills:
+        if skill in text_lower:
+            extracted_data["skills"].append(skill.capitalize()) # Capitalize for consistency
 
-    # Extracting Education and Experience (using rule-based approach with spaCy entities)
-    # This is a very basic example and would need significant refinement for real-world resumes
+    # Extracting Education and Experience using spaCy entities and keywords
     for ent in doc.ents:
-        if ent.label_ == "ORG" or ent.label_ == "GPE": # Organizations or Geopolitical Entities might be part of education/experience
-            if "university" in ent.text.lower() or "college" in ent.text.lower():
+        # PERSON entities might be names (though we have a placeholder name for now)
+        # if ent.label_ == "PERSON":
+        #    if not extracted_data["name"]: # Only set if not already found by other means
+        #        extracted_data["name"] = ent.text
+
+        # ORG (Organization) and GPE (Geopolitical Entity) are good candidates for schools/companies
+        if ent.label_ in ["ORG", "GPE"]:
+            ent_text_lower = ent.text.lower()
+            if "university" in ent_text_lower or "college" in ent_text_lower or "institute" in ent_text_lower:
                 extracted_data["education"].append(ent.text)
-            elif "company" in ent.text.lower() or "inc" in ent.text.lower() or "llc" in ent.text.lower():
+            # Basic check for company indicators
+            elif "company" in ent_text_lower or "inc" in ent_text_lower or "llc" in ent_text_lower or "corp" in ent_text_lower or "group" in ent_text_lower:
                 extracted_data["experience"].append(ent.text)
 
-    # A more sophisticated approach for name extraction would involve NER models trained on names
-    # For now, a placeholder
-    extracted_data["name"] = "Extracted Name Placeholder"
+    # Placeholder for name if not found by NER
+    if not extracted_data["name"] and doc.ents:
+        for ent in doc.ents:
+            if ent.label_ == "PERSON":
+                extracted_data["name"] = ent.text
+                break
+    if not extracted_data["name"]:
+        extracted_data["name"] = "Name Not Extracted (Placeholder)"
+
+
+    # Remove duplicates from lists
+    extracted_data["skills"] = list(set(extracted_data["skills"]))
+    extracted_data["education"] = list(set(extracted_data["education"]))
+    extracted_data["experience"] = list(set(extracted_data["experience"]))
 
     return extracted_data
 
 if __name__ == "__main__":
+    st.write("Running resume_parser.py directly for testing:")
     sample_resume_text = """
     John Doe
     john.doe@example.com
@@ -67,9 +152,15 @@ if __name__ == "__main__":
     Skills: Python, Java, C++, Machine Learning, Natural Language Processing, Data Analysis
     """
 
+    st.write("--- Testing clean_text ---")
     cleaned_text = clean_text(sample_resume_text)
-    print("Cleaned Text:", cleaned_text)
+    st.write(f"Cleaned Text: {cleaned_text}")
 
+    st.write("--- Testing extract_info_spacy ---")
     extracted_data = extract_info_spacy(cleaned_text)
-    print("Extracted Data:", extracted_data)
+    st.json(extracted_data)
 
+    st.write("Ensuring spaCy model loads:")
+    get_spacy_model()
+    st.write("Ensuring NLTK data is checked:")
+    download_nltk_data()
