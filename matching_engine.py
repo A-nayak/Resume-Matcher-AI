@@ -21,4 +21,3 @@ if __name__ == "__main__":
     similarity_score = calculate_similarity(resume_embedding, job_description_embedding)
     print(f"Similarity Score: {similarity_score}")
 
-
