@@ -13,24 +13,31 @@ nltk_data_dir = os.path.join("/tmp", "nltk_data")
 os.makedirs(nltk_data_dir, exist_ok=True)
 os.environ["NLTK_DATA"] = nltk_data_dir # Explicitly set the environment variable
 
-# Download NLTK data to the specified directory.
-# NLTK will check if the data is already present before downloading.
-st.cache_resource # Use Streamlit's cache to avoid re-downloading on rerun
+# Function to download NLTK data. Removed @st.cache_resource here
+# to ensure it runs every time the module is imported, which is safer
+# for NLTK path issues in some environments.
 def download_nltk_data():
     try:
+        # This will check if 'punkt' is found in NLTK_DATA or other paths
         nltk.data.find('tokenizers/punkt')
+        st.success("NLTK 'punkt' tokenizer found.")
     except:
         st.warning("NLTK 'punkt' tokenizer not found. Downloading...")
+        # Specify download_dir to ensure it goes into our writable path
         nltk.download('punkt', download_dir=nltk_data_dir, quiet=True)
         st.success("NLTK 'punkt' downloaded.")
 
     try:
+        # This will check if 'stopwords' is found
         nltk.data.find('corpora/stopwords')
+        st.success("NLTK 'stopwords' corpus found.")
     except:
         st.warning("NLTK 'stopwords' corpus not found. Downloading...")
+        # Specify download_dir to ensure it goes into our writable path
         nltk.download('stopwords', download_dir=nltk_data_dir, quiet=True)
         st.success("NLTK 'stopwords' downloaded.")
 
+# Call the download function directly when the module is imported
 download_nltk_data()
 # --- End NLTK Data Setup ---
 
@@ -93,8 +100,6 @@ def extract_info_spacy(text):
     if phone_match: extracted_data["phone"] = phone_match.group(0)
 
     # Extracting skills (simplified - will need a more comprehensive approach for real-world)
-    # Consider using a more extensive, predefined list or custom NER for production
-    # Example: Look for common skill keywords in the text
     common_skills = [
         "python", "java", "c++", "javascript", "html", "css", "react", "angular", "vue",
         "machine learning", "deep learning", "nlp", "artificial intelligence",
@@ -105,21 +110,14 @@ def extract_info_spacy(text):
     text_lower = text.lower()
     for skill in common_skills:
         if skill in text_lower:
-            extracted_data["skills"].append(skill.capitalize()) # Capitalize for consistency
+            extracted_data["skills"].append(skill.capitalize())
 
     # Extracting Education and Experience using spaCy entities and keywords
     for ent in doc.ents:
-        # PERSON entities might be names (though we have a placeholder name for now)
-        # if ent.label_ == "PERSON":
-        #    if not extracted_data["name"]: # Only set if not already found by other means
-        #        extracted_data["name"] = ent.text
-
-        # ORG (Organization) and GPE (Geopolitical Entity) are good candidates for schools/companies
         if ent.label_ in ["ORG", "GPE"]:
             ent_text_lower = ent.text.lower()
             if "university" in ent_text_lower or "college" in ent_text_lower or "institute" in ent_text_lower:
                 extracted_data["education"].append(ent.text)
-            # Basic check for company indicators
             elif "company" in ent_text_lower or "inc" in ent_text_lower or "llc" in ent_text_lower or "corp" in ent_text_lower or "group" in ent_text_lower:
                 extracted_data["experience"].append(ent.text)
 
@@ -131,7 +129,6 @@ def extract_info_spacy(text):
                 break
     if not extracted_data["name"]:
         extracted_data["name"] = "Name Not Extracted (Placeholder)"
-
 
     # Remove duplicates from lists
     extracted_data["skills"] = list(set(extracted_data["skills"]))
