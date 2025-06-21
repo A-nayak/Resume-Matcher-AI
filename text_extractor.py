@@ -24,4 +24,3 @@ def extract_text(file_path):
     else:
         raise ValueError("Unsupported file format. Only PDF and DOCX are supported.")
 
-
