@@ -37,18 +37,5 @@ def extract_text(file_path):
         raise ValueError("Unsupported file format. Only PDF and DOCX are supported.")
 
 if __name__ == "__main__":
-    # Example usage for testing (replace with actual file paths)
     print("--- Testing text_extractor.py ---")
-    # To test locally, you'd need sample.pdf and sample.docx files
-    # try:
-    #     pdf_text = extract_text("sample.pdf")
-    #     print(f"PDF Text:\n{pdf_text[:500]}...")
-    # except Exception as e:
-    #     print(f"PDF extraction error: {e}")
-
-    # try:
-    #     docx_text = extract_text("sample.docx")
-    #     print(f"DOCX Text:\n{docx_text[:500]}...")
-    # except Exception as e:
-    #     print(f"DOCX extraction error: {e}")
     pass
