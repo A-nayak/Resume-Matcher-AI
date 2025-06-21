@@ -1,10 +1,8 @@
 import streamlit as st
-import os # Make sure this is imported!
+import os
 from text_extractor import extract_text
-# Corrected import: We now import get_spacy_model instead of a global nlp object
 from resume_parser import extract_info_spacy, clean_text, get_spacy_model
 from matching_engine import get_embedding, calculate_similarity
-# skill_suggester.py's extract_keywords_spacy no longer needs nlp_model passed as an argument
 from skill_suggester import extract_keywords_rake, extract_keywords_spacy
 
 st.set_page_config(layout="wide", page_title="AI Resume Matcher")
@@ -18,18 +16,15 @@ resume_file = st.file_uploader("Choose a resume file (PDF or DOCX)", type=["pdf"
 resume_text = None
 if resume_file:
     st.success("Resume uploaded successfully! Processing...")
-    # Save the uploaded file temporarily
-    file_path = os.path.join("/tmp", resume_file.name) # Use /tmp for temp files in Streamlit Cloud
+    file_path = os.path.join("/tmp", resume_file.name)
     with open(file_path, "wb") as f:
         f.write(resume_file.getbuffer())
 
     try:
-        # Extract text
         resume_text = extract_text(file_path)
         st.subheader("Extracted Resume Text Preview:")
         st.expander("Click to view full resume text").write(resume_text[:1000] + "..." if len(resume_text) > 1000 else resume_text)
 
-        # Clean and parse resume
         cleaned_resume_text = clean_text(resume_text)
         parsed_resume_data = extract_info_spacy(cleaned_resume_text)
         st.subheader("Parsed Resume Data:")
@@ -40,21 +35,18 @@ if resume_file:
         st.info("Please ensure your resume is a valid PDF or DOCX file and not corrupted.")
 
     finally:
-        # Clean up temporary file
-        os.remove(file_path) # Important to clean up temp files
+        os.remove(file_path)
 
 st.header("Enter Job Description 📋")
 job_description = st.text_area("Paste the job description here:", height=300,
                                placeholder="e.g., We are looking for a Software Engineer with strong Python and Machine Learning skills...")
 
-if job_description and resume_text: # Only proceed if both are provided
+if job_description and resume_text:
     st.subheader("Job Description Preview:")
     st.expander("Click to view full job description").write(job_description[:1000] + "..." if len(job_description) > 1000 else job_description)
 
-    # Clean job description (using the same clean_text function)
     cleaned_job_description = clean_text(job_description)
 
-    # Get embeddings and calculate similarity
     try:
         resume_embedding = get_embedding(cleaned_resume_text)
         job_description_embedding = get_embedding(cleaned_job_description)
@@ -63,7 +55,6 @@ if job_description and resume_text: # Only proceed if both are provided
         st.subheader("Matching Score 🎯")
         st.metric(label="Resume-Job Description Similarity", value=f"{similarity_score:.2f}")
 
-        # Basic Recommendation
         if similarity_score > 0.75:
             st.success("🎉 Excellent Match! Your profile highly aligns with this role. Definitely apply!")
         elif similarity_score > 0.5:
@@ -79,17 +70,16 @@ if job_description and resume_text: # Only proceed if both are provided
             st.subheader("Keywords (Rake-NLTK):")
             rake_keywords = extract_keywords_rake(job_description)
             if rake_keywords:
-                for keyword in rake_keywords[:10]: # Show top 10 keywords
+                for keyword in rake_keywords[:10]:
                     st.markdown(f"- {keyword}")
             else:
                 st.write("No keywords found using Rake-NLTK.")
 
         with col2:
             st.subheader("Keywords (spaCy NER):")
-            # Calling extract_keywords_spacy without passing nlp_model
             spacy_keywords = extract_keywords_spacy(job_description)
             if spacy_keywords:
-                for keyword in spacy_keywords[:10]: # Show top 10 keywords
+                for keyword in spacy_keywords[:10]:
                     st.markdown(f"- {keyword}")
             else:
                 st.write("No keywords found using spaCy NER.")
