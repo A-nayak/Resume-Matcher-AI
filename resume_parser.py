@@ -4,18 +4,20 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 import re
 import os
+import subprocess # Added for spaCy model download
 
-# --- Explicitly set NLTK_DATA environment variable ---
+# --- NLTK Data Setup ---
 nltk_data_dir = os.path.join("/tmp", "nltk_data")
 os.makedirs(nltk_data_dir, exist_ok=True)
-os.environ["NLTK_DATA"] = nltk_data_dir # Set the environment variable
+os.environ["NLTK_DATA"] = nltk_data_dir # Set the environment variable for NLTK
 
-# --- NLTK data downloads (will download to NLTK_DATA location) ---
+# Download NLTK data (punkt for tokenization, stopwords for cleaning)
 # NLTK will check if the data is already present before downloading.
-nltk.download('punkt', download_dir=nltk_data_dir, quiet=True) # Specify download_dir
-nltk.download('stopwords', download_dir=nltk_data_dir, quiet=True) # Specify download_dir
-# --- End of NLTK data setup and download ---
+nltk.download('punkt', download_dir=nltk_data_dir, quiet=True)
+nltk.download('stopwords', download_dir=nltk_data_dir, quiet=True)
+# --- End NLTK Data Setup ---
 
+# --- SpaCy Model Setup ---
 _nlp_model = None
 
 def get_spacy_model():
@@ -26,10 +28,12 @@ def get_spacy_model():
             _nlp_model = spacy.load("en_core_web_sm")
         except OSError:
             # If the model isn't found, download it. This is crucial for deployment.
-            import subprocess
-            subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"])
+            st.warning("SpaCy model 'en_core_web_sm' not found. Attempting to download...")
+            subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"], capture_output=True, text=True)
             _nlp_model = spacy.load("en_core_web_sm")
+            st.success("SpaCy model downloaded and loaded successfully!")
     return _nlp_model
+# --- End SpaCy Model Setup ---
 
 def clean_text(text):
     text = text.lower()
@@ -40,6 +44,7 @@ def clean_text(text):
     return " ".join(filtered_tokens)
 
 def extract_info_spacy(text):
+    # Get the spaCy model using the getter function
     nlp_model = get_spacy_model()
     doc = nlp_model(text)
     extracted_data = {
@@ -63,7 +68,7 @@ def extract_info_spacy(text):
             extracted_data["skills"].append(keyword)
 
     for ent in doc.ents:
-        if ent.label_ == "ORG" or ent.label_ == "GPE": # Organizations or Geopolitical Entities might be part of education/experience
+        if ent.label_ == "ORG" or ent.label_ == "GPE":
             if "university" in ent.text.lower() or "college" in ent.text.lower():
                 extracted_data["education"].append(ent.text)
             elif "company" in ent.text.lower() or "inc" in ent.text.lower() or "llc" in ent.text.lower():
@@ -72,3 +77,20 @@ def extract_info_spacy(text):
     extracted_data["name"] = "Extracted Name Placeholder"
 
     return extracted_data
+
+if __name__ == "__main__":
+    sample_resume_text = """
+    John Doe
+    john.doe@example.com
+    (123) 456-7890
+    Software Engineer with 5 years of experience in Python and Java. Strong background in Machine Learning and NLP.
+    Education: Master of Science in Computer Science from Stanford University (2020)
+    Experience: Lead Software Engineer at Google Inc. (2020-Present), Software Developer at Microsoft Corp. (2018-2020)
+    Skills: Python, Java, C++, Machine Learning, Natural Language Processing, Data Analysis
+    """
+
+    cleaned_text = clean_text(sample_resume_text)
+    print("Cleaned Text:", cleaned_text)
+
+    extracted_data = extract_info_spacy(cleaned_text)
+    print("Extracted Data:", extracted_data)
