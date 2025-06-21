@@ -1,30 +1,25 @@
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
-import streamlit as st # Import streamlit for caching
+import streamlit as st
 
-# Load pre-trained Sentence-Transformer model
-@st.cache_resource # Use Streamlit's cache to avoid re-loading model on rerun
+@st.cache_resource
 def get_sentence_transformer_model():
-    """Loads the SentenceTransformer model, caching it for efficiency."""
     st.info("Loading Sentence-Transformer model (this happens once)...")
     model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
     st.success("Sentence-Transformer model loaded.")
     return model
 
-# Initialize the model once
 model = get_sentence_transformer_model()
 
 def get_embedding(text):
-    # Ensure text is not empty, as encode might fail on empty string
     if not text.strip():
-        return np.zeros(model.get_sentence_embedding_dimension()) # Return zero vector for empty text
+        return np.zeros(model.get_sentence_embedding_dimension())
     return model.encode(text)
 
 def calculate_similarity(embedding1, embedding2):
-    # Ensure inputs are not empty vectors if they resulted from empty text
     if np.all(embedding1 == 0) and np.all(embedding2 == 0):
-        return 0.0 # Or handle as appropriate if both are empty
+        return 0.0
     return cosine_similarity([embedding1], [embedding2])[0][0]
 
 if __name__ == "__main__":
