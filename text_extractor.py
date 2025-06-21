@@ -1,6 +1,6 @@
 import PyPDF2
 import docx
-import os # Import os for path handling
+import os
 
 def extract_text_from_pdf(pdf_path):
     text = ""
@@ -11,7 +11,7 @@ def extract_text_from_pdf(pdf_path):
                 text += reader.pages[page_num].extract_text()
     except Exception as e:
         print(f"Error reading PDF {pdf_path}: {e}")
-        text = "" # Return empty string on error
+        text = ""
     return text
 
 def extract_text_from_docx(docx_path):
@@ -22,7 +22,7 @@ def extract_text_from_docx(docx_path):
             text.append(paragraph.text)
     except Exception as e:
         print(f"Error reading DOCX {docx_path}: {e}")
-        text = [""] # Return empty list on error
+        text = [""]
     return "\n".join(text)
 
 def extract_text(file_path):
