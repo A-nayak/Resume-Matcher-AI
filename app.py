@@ -5,7 +5,8 @@ from pathlib import Path
 import streamlit as st
 
 from text_extractor import extract_text
-from resume_parser import clean_text, extract_info, nlp as spacy_nlp
+from resume_parser import clean_text, extract_info
+from resume_parser import load_spacy_model
 from matching_engine import get_embedding, calculate_similarity
 from skill_suggester import extract_keywords_rake, extract_keywords_spacy
 
@@ -80,7 +81,7 @@ if resume_file:
             st.write(rake_keys)
         with cols[1]:
             st.markdown("**spaCy NER**")
-            spacy_keys = extract_keywords_spacy(job_desc, spacy_nlp)
+            spacy_keys = extract_keywords_spacy(job_desc, load_spacy_model())
             st.write(spacy_keys)
 
     # Clean up
