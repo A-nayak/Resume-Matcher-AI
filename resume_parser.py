@@ -8,17 +8,14 @@ from nltk.tokenize import word_tokenize
 
 logger = logging.getLogger(__name__)
 
-# Load spaCy model lazily
 def load_spacy_model():
     try:
         return spacy.load("en_core_web_sm")
     except OSError:
-        logger.info("Downloading spaCy en_core_web_sm model...")
+        logger.info("Downloading spaCy model...")
         from spacy.cli import download
         download("en_core_web_sm")
         return spacy.load("en_core_web_sm")
-
-nlp = load_spacy_model()
 
 # Ensure NLTK stopwords
 try:
@@ -39,33 +36,32 @@ def clean_text(text: str) -> str:
     return " ".join([t for t in tokens if t not in stops and t.strip()])
 
 def extract_info(text: str) -> dict:
-    """
-    Returns dict with fields: name, email, phone, skills, education, experience.
-    """
+    nlp = load_spacy_model()
+
     data = {"name": "", "email": "", "phone": "", "skills": [], "education": [], "experience": []}
-    # Email & phone
+
     data["email"] = EMAIL_REGEX.search(text).group(0) if EMAIL_REGEX.search(text) else ""
     data["phone"] = PHONE_REGEX.search(text).group(0) if PHONE_REGEX.search(text) else ""
-    # NER
+
     doc = nlp(text)
-    # Name: first PERSON entity
+
     for ent in doc.ents:
         if ent.label_ == "PERSON":
             data["name"] = ent.text
             break
-    # Skills list can be improved by integrating external taxonomy
+
     SKILL_KEYWORDS = {"python", "java", "c++", "machine learning", "nlp", "data analysis", "sql"}
     for token in set(text.split()):
         if token in SKILL_KEYWORDS:
             data["skills"].append(token)
-    # Education & Experience by ORG + context keywords
+
     for sent in doc.sents:
         sent_text = sent.text.lower()
         if any(k in sent_text for k in ("university", "college", "institute")):
             data["education"].append(sent.text.strip())
         if any(k in sent_text for k in ("inc", "llc", "corp", "company", "startup")):
             data["experience"].append(sent.text.strip())
-    # Deduplicate
+
     data["skills"] = sorted(set(data["skills"]))
     data["education"] = sorted(set(data["education"]))
     data["experience"] = sorted(set(data["experience"]))
