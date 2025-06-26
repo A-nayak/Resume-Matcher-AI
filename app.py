@@ -2,116 +2,48 @@ import streamlit as st
 import tempfile
 import os
 from resume_parser import ResumeParser
-from skill_suggester import SkillSuggester
 from matching_engine import MatchingEngine
-import pandas as pd
 
-# Set up the app
-st.set_page_config(
-    page_title="Resume Matcher AI",
-    page_icon="📄",
-    layout="wide"
-)
-
-# Initialize components
-resume_parser = ResumeParser()
-skill_suggester = SkillSuggester()
-matching_engine = MatchingEngine()
-
-def save_uploaded_file(uploaded_file):
-    """Save uploaded file to temporary location"""
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as tmp_file:
-            tmp_file.write(uploaded_file.getvalue())
-            return tmp_file.name
-    except Exception as e:
-        st.error(f"Error saving file: {str(e)}")
-        return None
+st.set_page_config(page_title="Resume Matcher AI", layout="wide")
 
 def main():
     st.title("📄 Resume Matcher AI")
-    st.markdown("Upload your resume and job description to analyze the match")
-    
-    # File upload sections
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("Upload Resume")
-        resume_file = st.file_uploader("Choose resume file", type=["pdf", "docx", "txt"], key="resume")
-    
-    with col2:
-        st.subheader("Upload Job Description")
-        jd_file = st.file_uploader("Choose job description file", type=["pdf", "docx", "txt"], key="jd")
-    
+    st.write("Upload a resume and job description to check compatibility.")
+
+    # File upload
+    resume_file = st.file_uploader("Upload Resume (PDF/DOCX)", type=["pdf", "docx"])
+    jd_file = st.file_uploader("Upload Job Description (PDF/DOCX)", type=["pdf", "docx"])
+
     if st.button("Analyze Match") and resume_file and jd_file:
-        with st.spinner("Processing files..."):
+        with st.spinner("Processing..."):
             # Save files temporarily
-            resume_path = save_uploaded_file(resume_file)
-            jd_path = save_uploaded_file(jd_file)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_resume:
+                tmp_resume.write(resume_file.read())
+                resume_path = tmp_resume.name
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_jd:
+                tmp_jd.write(jd_file.read())
+                jd_path = tmp_jd.name
+
+            # Parse files
+            parser = ResumeParser()
+            resume_data = parser.parse_resume(resume_path)
+            jd_text = parser.extract_text(jd_path)
+
+            # Calculate match
+            matcher = MatchingEngine()
+            similarity = matcher.calculate_similarity(resume_data["raw_text"], jd_text)
             
-            if resume_path and jd_path:
-                try:
-                    # Parse files
-                    resume_data = resume_parser.parse_resume(resume_path)
-                    jd_text = resume_parser.text_extractor.extract_text(jd_path)
-                    
-                    if not jd_text:
-                        st.error("Could not extract text from job description")
-                        return
-                    
-                    # Perform matching
-                    match_result = matching_engine.match_resume_to_jd(resume_data, jd_text)
-                    suggestions = skill_suggester.suggest_skills(resume_data, jd_text)
-                    
-                    # Display results
-                    st.success("Analysis complete!")
-                    
-                    # Overall match score
-                    st.subheader(f"Overall Match Score: {match_result['similarity_score']}%")
-                    st.progress(match_result['similarity_score'] / 100)
-                    
-                    # Skills analysis
-                    st.subheader("Skills Analysis")
-                    
-                    tab1, tab2, tab3 = st.tabs(["Your Skills", "Missing Skills", "Recommendations"])
-                    
-                    with tab1:
-                        if suggestions['current_skills']:
-                            st.write(pd.DataFrame({"Your Skills": suggestions['current_skills']}))
-                        else:
-                            st.warning("No skills detected in resume")
-                    
-                    with tab2:
-                        if suggestions['missing_skills']:
-                            st.write(pd.DataFrame({"Missing Skills": suggestions['missing_skills']}))
-                        else:
-                            st.success("All key skills are present!")
-                    
-                    with tab3:
-                        if suggestions['recommendations']:
-                            for skill, recs in suggestions['recommendations'].items():
-                                st.markdown(f"**For {skill}:**")
-                                st.write(", ".join(recs))
-                        else:
-                            st.info("No specific recommendations needed")
-                    
-                    # Detailed view
-                    with st.expander("View Detailed Analysis"):
-                        st.subheader("Resume Education")
-                        st.write(resume_data.get('education', []))
-                        
-                        st.subheader("Resume Experience")
-                        st.write(resume_data.get('experience', []))
-                
-                except Exception as e:
-                    st.error(f"An error occurred: {str(e)}")
-                
-                finally:
-                    # Clean up temporary files
-                    if os.path.exists(resume_path):
-                        os.unlink(resume_path)
-                    if os.path.exists(jd_path):
-                        os.unlink(jd_path)
+            # Display results
+            st.success(f"Match Score: {similarity:.2f}%")
+            st.progress(similarity / 100)
+
+            st.subheader("Resume Skills")
+            st.write(resume_data["skills"])
+
+            # Cleanup
+            os.unlink(resume_path)
+            os.unlink(jd_path)
 
 if __name__ == "__main__":
     main()
