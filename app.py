@@ -1,91 +1,117 @@
-import os
-import logging
-from pathlib import Path
-
 import streamlit as st
+import tempfile
+import os
+from resume_parser import ResumeParser
+from skill_suggester import SkillSuggester
+from matching_engine import MatchingEngine
+import pandas as pd
 
-from text_extractor import extract_text
-from resume_parser import clean_text, extract_info
-from resume_parser import load_spacy_model
-from matching_engine import get_embedding, calculate_similarity
-from skill_suggester import extract_keywords_rake, extract_keywords_spacy
+# Set up the app
+st.set_page_config(
+    page_title="Resume Matcher AI",
+    page_icon="📄",
+    layout="wide"
+)
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Initialize components
+resume_parser = ResumeParser()
+skill_suggester = SkillSuggester()
+matching_engine = MatchingEngine()
 
-st.set_page_config(page_title="AI Resume Analyzer", layout="wide")
-st.title("🚀 AI Resume Analyzer + Smart Internship Matcher")
-
-# Sidebar settings
-st.sidebar.header("Settings")
-max_rake = st.sidebar.slider("Max RAKE keywords:", min_value=5, max_value=50, value=20)
-similarity_threshold = st.sidebar.slider("Good match threshold:", 0.0, 1.0, 0.7)
-
-# File uploader
-resume_file = st.file_uploader("Upload your resume (PDF, DOCX, or TXT)", type=["pdf", "docx", "txt"])
-
-if resume_file:
-    save_path = Path(resume_file.name)
-    with open(save_path, "wb") as f:
-        f.write(resume_file.getbuffer())
-    st.success("✅ Resume uploaded")
-
-    with st.spinner("Extracting text..."):
-        resume_text = extract_text(save_path.as_posix())
-
-    st.subheader("Extracted Text")
-    st.write(resume_text)
-
-    # Parsing
-    with st.spinner("Parsing resume..."):
-        cleaned = clean_text(resume_text)
-        info = extract_info(resume_text)
-
-    st.subheader("Parsed Information")
-    st.json(info)
-
-    # Download parsed JSON
-    st.download_button(
-        label="Download JSON",
-        data=st.session_state.setdefault("parsed_json", info),
-        file_name="parsed_resume.json",
-        mime="application/json"
-    )
-
-    # Job description input
-    st.subheader("🔍 Job Description")
-    job_desc = st.text_area("Paste job description:", height=200)
-
-    if job_desc:
-        # Similarity
-        cleaned_jd = clean_text(job_desc)
-        with st.spinner("Calculating similarity..."):
-            emb_res = get_embedding(cleaned)
-            emb_jd = get_embedding(cleaned_jd)
-            score = calculate_similarity(emb_res, emb_jd)
-
-        st.metric("Similarity Score", f"{score:.2f}")
-        if score >= similarity_threshold:
-            st.success("Great Match! 🎉")
-        elif score >= 0.5:
-            st.info("Good Match 👍")
-        else:
-            st.warning("Moderate Match — consider tailoring your resume.")
-
-        # Keyword suggestions
-        st.subheader("📋 Skill / Keyword Suggestions")
-        cols = st.columns(2)
-        with cols[0]:
-            st.markdown("**RAKE**")
-            rake_keys = extract_keywords_rake(job_desc, max_phrases=max_rake)
-            st.write(rake_keys)
-        with cols[1]:
-            st.markdown("**spaCy NER**")
-            spacy_keys = extract_keywords_spacy(job_desc, load_spacy_model())
-            st.write(spacy_keys)
-
-    # Clean up
+def save_uploaded_file(uploaded_file):
+    """Save uploaded file to temporary location"""
     try:
-        os.remove(save_path)
-    except Exception:
-        pass
+        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as tmp_file:
+            tmp_file.write(uploaded_file.getvalue())
+            return tmp_file.name
+    except Exception as e:
+        st.error(f"Error saving file: {str(e)}")
+        return None
+
+def main():
+    st.title("📄 Resume Matcher AI")
+    st.markdown("Upload your resume and job description to analyze the match")
+    
+    # File upload sections
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Upload Resume")
+        resume_file = st.file_uploader("Choose resume file", type=["pdf", "docx", "txt"], key="resume")
+    
+    with col2:
+        st.subheader("Upload Job Description")
+        jd_file = st.file_uploader("Choose job description file", type=["pdf", "docx", "txt"], key="jd")
+    
+    if st.button("Analyze Match") and resume_file and jd_file:
+        with st.spinner("Processing files..."):
+            # Save files temporarily
+            resume_path = save_uploaded_file(resume_file)
+            jd_path = save_uploaded_file(jd_file)
+            
+            if resume_path and jd_path:
+                try:
+                    # Parse files
+                    resume_data = resume_parser.parse_resume(resume_path)
+                    jd_text = resume_parser.text_extractor.extract_text(jd_path)
+                    
+                    if not jd_text:
+                        st.error("Could not extract text from job description")
+                        return
+                    
+                    # Perform matching
+                    match_result = matching_engine.match_resume_to_jd(resume_data, jd_text)
+                    suggestions = skill_suggester.suggest_skills(resume_data, jd_text)
+                    
+                    # Display results
+                    st.success("Analysis complete!")
+                    
+                    # Overall match score
+                    st.subheader(f"Overall Match Score: {match_result['similarity_score']}%")
+                    st.progress(match_result['similarity_score'] / 100)
+                    
+                    # Skills analysis
+                    st.subheader("Skills Analysis")
+                    
+                    tab1, tab2, tab3 = st.tabs(["Your Skills", "Missing Skills", "Recommendations"])
+                    
+                    with tab1:
+                        if suggestions['current_skills']:
+                            st.write(pd.DataFrame({"Your Skills": suggestions['current_skills']}))
+                        else:
+                            st.warning("No skills detected in resume")
+                    
+                    with tab2:
+                        if suggestions['missing_skills']:
+                            st.write(pd.DataFrame({"Missing Skills": suggestions['missing_skills']}))
+                        else:
+                            st.success("All key skills are present!")
+                    
+                    with tab3:
+                        if suggestions['recommendations']:
+                            for skill, recs in suggestions['recommendations'].items():
+                                st.markdown(f"**For {skill}:**")
+                                st.write(", ".join(recs))
+                        else:
+                            st.info("No specific recommendations needed")
+                    
+                    # Detailed view
+                    with st.expander("View Detailed Analysis"):
+                        st.subheader("Resume Education")
+                        st.write(resume_data.get('education', []))
+                        
+                        st.subheader("Resume Experience")
+                        st.write(resume_data.get('experience', []))
+                
+                except Exception as e:
+                    st.error(f"An error occurred: {str(e)}")
+                
+                finally:
+                    # Clean up temporary files
+                    if os.path.exists(resume_path):
+                        os.unlink(resume_path)
+                    if os.path.exists(jd_path):
+                        os.unlink(jd_path)
+
+if __name__ == "__main__":
+    main()
