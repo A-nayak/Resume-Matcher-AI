@@ -1,50 +1,47 @@
-import logging
-from pathlib import Path
+import os
+import magic
+from PyPDF2 import PdfReader
+from docx import Document
+import pdfminer.high_level
+from typing import Optional
 
-import PyPDF2
-import docx
+class TextExtractor:
+    def __init__(self):
+        self.mime = magic.Magic(mime=True)
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+    def extract_text(self, file_path: str) -> Optional[str]:
+        """Extract text from PDF, DOCX, or TXT files"""
+        try:
+            file_type = self.mime.from_file(file_path)
 
-def extract_text_from_pdf(pdf_path: Path) -> str:
-    text = []
-    try:
-        with pdf_path.open("rb") as f:
-            reader = PyPDF2.PdfReader(f)
-            for page in reader.pages:
-                page_text = page.extract_text() or ""
-                text.append(page_text)
-    except Exception as e:
-        logger.exception(f"Failed to extract PDF text: {e}")
-        raise
-    return "\n".join(text)
+            if file_type == "application/pdf":
+                return self._extract_from_pdf(file_path)
+            elif file_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                return self._extract_from_docx(file_path)
+            elif file_type == "text/plain":
+                return self._extract_from_txt(file_path)
+            return None
+        except Exception as e:
+            print(f"Error extracting text: {str(e)}")
+            return None
 
-def extract_text_from_docx(docx_path: Path) -> str:
-    text = []
-    try:
-        doc = docx.Document(docx_path)
-        text = [p.text for p in doc.paragraphs if p.text.strip()]
-    except Exception as e:
-        logger.exception(f"Failed to extract DOCX text: {e}")
-        raise
-    return "\n".join(text)
+    def _extract_from_pdf(self, file_path: str) -> Optional[str]:
+        """Extract text from PDF using PyPDF2 (fallback to pdfminer)"""
+        try:
+            with open(file_path, 'rb') as f:
+                reader = PdfReader(f)
+                text = "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
+                if text.strip():
+                    return text
+        except:
+            return pdfminer.high_level.extract_text(file_path)
 
-def extract_text_from_txt(txt_path: Path) -> str:
-    try:
-        return txt_path.read_text(encoding='utf-8')
-    except Exception as e:
-        logger.exception(f"Failed to read TXT file: {e}")
-        raise
+    def _extract_from_docx(self, file_path: str) -> str:
+        """Extract text from DOCX files"""
+        doc = Document(file_path)
+        return "\n".join([para.text for para in doc.paragraphs])
 
-def extract_text(file_path: str) -> str:
-    path = Path(file_path)
-    suffix = path.suffix.lower()
-    if suffix == ".pdf":
-        return extract_text_from_pdf(path)
-    elif suffix == ".docx":
-        return extract_text_from_docx(path)
-    elif suffix == ".txt":
-        return extract_text_from_txt(path)
-    else:
-        raise ValueError(f"Unsupported file type: {suffix}. Supported: .pdf, .docx, .txt")
+    def _extract_from_txt(self, file_path: str) -> str:
+        """Extract text from TXT files"""
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
